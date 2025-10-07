@@ -15,6 +15,21 @@ export default function App() {
     return () => window.removeEventListener("beforeinstallprompt", handler);
   }, []);
 
+  useEffect(() => {
+    const log = () => {
+      if (window.matchMedia("(display-mode: standalone)").matches) {
+        console.log("PWA em standalone");
+      } else if ((navigator as any).standalone) {
+        console.log("PWA em standalone (iOS legacy)");
+      } else {
+        console.log("Rodando no navegador");
+      }
+    };
+    log();
+    window.addEventListener("visibilitychange", log);
+    return () => window.removeEventListener("visibilitychange", log);
+  }, []);
+
   const onInstall = async () => {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
