@@ -18,8 +18,80 @@ type Item = {
 };
 type DataShape = { machines: string[]; hours: number[]; items: Item[] };
 
+// Grupo de famílias e modelos (por sufixo do modelo)
+const familyOrder = [
+  "backhoe loaders",
+  "wheel loaders",
+  "motor graders",
+  "crawler dozers",
+  "excavators",
+] as const;
+
+const familyLabels: Record<string, string> = {
+  "backhoe loaders": "Retroescavadeiras",
+  "wheel loaders": "Pás Carregadeiras",
+  "motor graders": "Motoniveladoras",
+  "crawler dozers": "Tratores de Esteira",
+  excavators: "Escavadeiras",
+};
+
+// Mapa baseado no conjunto presente em public/data/maintenance.json (campo machines)
+// A chave do objeto é o sufixo do modelo (após o '-')
+const familiesMap: Record<string, Record<string, number | null>> = {
+  "backhoe loaders": {
+    "310L": null,
+    "310P": 5.8,
+  },
+  "wheel loaders": {
+    "444G": 8.0,
+    "524K": null,
+    "544K": null,
+    "624K": null,
+    "644K": null,
+    "724K": null,
+    "744K": null,
+    "824K": null,
+    "844K": null,
+  },
+  "motor graders": {
+    "620G": 15.0,
+    "622G": 15.0,
+    "670G": 16.0,
+    "672G": 16.0,
+    "770G": 17.0,
+  },
+  "crawler dozers": {
+    "700J": 14.0,
+    "750J": 16.0,
+    "850J": 23.0,
+  },
+  excavators: {
+    "130G": 12.0,
+    "160G": 12.0,
+    "180G": 12.0,
+    "200D": 12.0,
+    "200G": 12.0,
+    "210G": 16.0,
+    "250G": 17.0,
+    "350G": 26.0,
+    "470G": 30.0,
+  },
+};
+
+function modelSuffix(machineId: string) {
+  // Converte "10-444G" -> "444G"
+  const idx = machineId.indexOf("-");
+  return idx >= 0 ? machineId.slice(idx + 1) : machineId;
+}
+
+function machinesByFamily(all: string[], family: string) {
+  const map = familiesMap[family] || {};
+  return all.filter((m) => map[modelSuffix(m)] !== undefined);
+}
+
 export default function App() {
   const [data, setData] = useState<DataShape | null>(null);
+  const [selectedFamily, setSelectedFamily] = useState<string>("");
   const [selectedModel, setSelectedModel] = useState<string>("");
   const [selectedHour, setSelectedHour] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -35,7 +107,14 @@ export default function App() {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const j: DataShape = await res.json();
         setData(j);
-        setSelectedModel(j.machines[0] ?? "");
+        // Define estado inicial baseado no primeiro grupo com modelos disponíveis
+        const fams = familyOrder as readonly string[];
+        const initialFamily =
+          fams.find((f) => machinesByFamily(j.machines, f).length > 0) || fams[0] || "";
+        setSelectedFamily(initialFamily);
+        const firstModel =
+          machinesByFamily(j.machines, initialFamily)[0] ?? j.machines[0] ?? "";
+        setSelectedModel(firstModel);
         setSelectedHour(j.hours[0] ?? null);
       } catch (e: any) {
         setErr(String(e?.message || e));
@@ -86,7 +165,45 @@ export default function App() {
 
       <section className="mx-auto max-w-7xl px-4 py-6">
         {/* Carrossel de máquinas */}
-        <div className="overflow-x-auto pb-3">
+        {/* Seletores de Família e Modelo */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+          <div>
+            <label className="block text-sm text-slate-300 mb-1">Família</label>
+            <select
+              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2"
+              value={selectedFamily}
+              onChange={(e) => {
+                const fam = e.target.value;
+                setSelectedFamily(fam);
+                if (data) {
+                  const list = machinesByFamily(data.machines, fam);
+                  setSelectedModel(list[0] ?? "");
+                }
+              }}
+            >
+              {familyOrder.map((fam) => (
+                <option key={fam} value={fam}>
+                  {familyLabels[fam] ?? fam}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm text-slate-300 mb-1">Modelo</label>
+            <select
+              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2"
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value)}
+            >
+              {machinesByFamily(data.machines, selectedFamily).map((m) => (
+                <option key={m} value={m}>
+                  {modelSuffix(m)}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div className="overflow-x-auto pb-3 hidden">
           <div className="flex gap-3">
             {data.machines.map((m) => {
               const active = m === selectedModel;
@@ -107,24 +224,20 @@ export default function App() {
           </div>
         </div>
 
-        {/* Chips de horas */}
-        <div className="mt-4 flex flex-wrap gap-2">
-          {data.hours.map((h) => {
-            const active = h === selectedHour;
-            return (
-              <button
-                key={h}
-                onClick={() => setSelectedHour(h)}
-                className={`px-3 py-1.5 rounded-lg border text-sm ${
-                  active
-                    ? "bg-yellow-400 text-slate-900 border-yellow-300"
-                    : "bg-yellow-600/20 border-yellow-500/30 hover:bg-yellow-600/30"
-                }`}
-              >
+        {/* Seleção de horas */}
+        <div className="mt-4">
+          <label className="block text-sm text-slate-300 mb-1">Horas</label>
+          <select
+            className="w-full sm:w-60 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2"
+            value={selectedHour ?? ''}
+            onChange={(e) => setSelectedHour(Number(e.target.value))}
+          >
+            {data.hours.map((h) => (
+              <option key={h} value={h}>
                 {h.toString().padStart(4, "0")}H
-              </button>
-            );
-          })}
+              </option>
+            ))}
+          </select>
         </div>
 
         {/* Linha de filtros no topo — espaço reservado */}

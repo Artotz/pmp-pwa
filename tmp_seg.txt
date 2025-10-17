@@ -1,0 +1,22 @@
+<div className="overflow-x-auto pb-3">
+          <div className="flex gap-3">
+            {data.machines.map((m) => {
+              const active = m === selectedModel;
+              return (
+                <button
+                  key={m}
+                  onClick={() => setSelectedModel(m)}
+                  className={`shrink-0 px-4 py-2 rounded-xl border ${
+                    active
+                      ? "bg-yellow-400 text-slate-900 border-yellow-300"
+                      : "bg-slate-900 border-slate-800 hover:bg-slate-800"
+                  }`}
+                >
+                  {m}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {
